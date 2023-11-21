@@ -1075,6 +1075,210 @@ func testSSECopyObject(s3Client *s3.S3) {
 	successLogger(function, args, startTime).Info()
 }
 
+func testGetBucketAcl(s3Client *s3.S3) {
+	startTime := time.Now()
+	function := "testGetBucketAcl"
+	expiry := 1 * time.Minute
+	bucket := randString(60, rand.NewSource(time.Now().UnixNano()), "aws-sdk-go-test-")
+	args := map[string]interface{}{
+		"bucketName": bucket,
+		"expiry":     expiry,
+	}
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", "AWS SDK GO CreateBucket Failed", err).Fatal()
+		return
+	}
+	defer cleanup(s3Client, bucket, "", function, args, startTime, true)
+	_, err = s3Client.GetBucketAcl(&s3.GetBucketAclInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO GetBucketAcl Failed %v", err), err).Fatal()
+		return
+	}
+	successLogger(function, args, startTime).Info()
+}
+
+const (
+	allusers = "http://acs.amazonaws.com/groups/global/AllUsers"
+)
+
+/*
+res acl {
+  Grants: [{
+      Grantee: {
+        Type: "Group",
+        URI: "http://acs.amazonaws.com/groups/global/AllUsers"
+      },
+      Permission: "WRITE"
+    },{
+      Grantee: {
+        Type: "Group",
+        URI: "http://acs.amazonaws.com/groups/global/AllUsers"
+      },
+      Permission: "READ"
+    }},
+  Owner: {
+    DisplayName: "minio",
+    ID: "02d6176db174dc93cb1b899f7c6078f08654445fe8cf1b6ce98d8855f66bdbf4"
+  }
+}
+*/
+
+func checkAclRes(grants []*s3.Grant) bool {
+	readtrue := false
+	for _, g := range grants {
+		if aws.StringValue(g.Permission) == "READ" {
+			if aws.StringValue(g.Grantee.Type) == "Group" &&
+				aws.StringValue(g.Grantee.URI) == allusers {
+				readtrue = true
+			}
+		}
+	}
+
+	return readtrue
+}
+
+func testPutBucketAcl(s3Client *s3.S3) {
+	startTime := time.Now()
+	function := "testPutBucketAcl"
+	expiry := 1 * time.Minute
+	bucket := randString(60, rand.NewSource(time.Now().UnixNano()), "aws-sdk-go-test-")
+	args := map[string]interface{}{
+		"bucketName": bucket,
+		"expiry":     expiry,
+	}
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", "AWS SDK GO CreateBucket Failed", err).Fatal()
+		return
+	}
+	defer cleanup(s3Client, bucket, "", function, args, startTime, true)
+	_, err = s3Client.PutBucketAcl(&s3.PutBucketAclInput{
+		Bucket:    aws.String(bucket),
+		GrantRead: aws.String(fmt.Sprintf("uri=%s", allusers)),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO PutBucketAcl Failed %v", err), err).Fatal()
+		return
+	}
+	res, err := s3Client.GetBucketAcl(&s3.GetBucketAclInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO GetBucketAcl Failed %v", err), err).Fatal()
+		return
+	}
+	if !checkAclRes(res.Grants) {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO PutBucketAcl mismatch %v", res), fmt.Errorf("acl mismatch for put")).Fatal()
+		return
+	}
+
+	successLogger(function, args, startTime).Info()
+}
+
+func testGetObjectAcl(s3Client *s3.S3) {
+	startTime := time.Now()
+	function := "testGetObjectAcl"
+	expiry := 1 * time.Minute
+	bucket := randString(60, rand.NewSource(time.Now().UnixNano()), "aws-sdk-go-test-")
+	object1 := "testObject1"
+	args := map[string]interface{}{
+		"bucketName":  bucket,
+		"objectName1": object1,
+		"expiry":      expiry,
+	}
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", "AWS SDK GO CreateBucket Failed", err).Fatal()
+		return
+	}
+	defer cleanup(s3Client, bucket, object1, function, args, startTime, true)
+	putInput := &s3.PutObjectInput{
+		Body:   aws.ReadSeekCloser(strings.NewReader("fileoupload")),
+		Bucket: aws.String(bucket),
+		Key:    aws.String(object1),
+	}
+	_, err = s3Client.PutObject(putInput)
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK Go PUT expected to success but got %v", err), err).Fatal()
+		return
+	}
+	_, err = s3Client.GetObjectAcl(&s3.GetObjectAclInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(object1),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK Go GetObjectAcl expected to success but got %v", err), err).Fatal()
+		return
+	}
+
+	successLogger(function, args, startTime).Info()
+}
+
+func testPutObjectAcl(s3Client *s3.S3) {
+	startTime := time.Now()
+	function := "testPutObjectAcl"
+	expiry := 1 * time.Minute
+	bucket := randString(60, rand.NewSource(time.Now().UnixNano()), "aws-sdk-go-test-")
+	object1 := "testObject1"
+	args := map[string]interface{}{
+		"bucketName":  bucket,
+		"objectName1": object1,
+		"expiry":      expiry,
+	}
+	_, err := s3Client.CreateBucket(&s3.CreateBucketInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", "AWS SDK GO CreateBucket Failed", err).Fatal()
+		return
+	}
+	defer cleanup(s3Client, bucket, object1, function, args, startTime, true)
+	putInput := &s3.PutObjectInput{
+		Body:   aws.ReadSeekCloser(strings.NewReader("fileoupload")),
+		Bucket: aws.String(bucket),
+		Key:    aws.String(object1),
+	}
+	_, err = s3Client.PutObject(putInput)
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK Go PUT expected to success but got %v", err), err).Fatal()
+		return
+	}
+
+	_, err = s3Client.PutObjectAcl(&s3.PutObjectAclInput{
+		Bucket:    aws.String(bucket),
+		Key:       aws.String(object1),
+		GrantRead: aws.String(fmt.Sprintf("uri=%s", allusers)),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO PutObjectAcl Failed %v", err), err).Fatal()
+		return
+	}
+
+	res, err := s3Client.GetObjectAcl(&s3.GetObjectAclInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(object1),
+	})
+	if err != nil {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO GetObjectAcl Failed %v", err), err).Fatal()
+		return
+	}
+	if !checkAclRes(res.Grants) {
+		failureLog(function, args, startTime, "", fmt.Sprintf("AWS SDK GO PutObjectAcl mismatch %v", res), fmt.Errorf("acl mismatch for put")).Fatal()
+		return
+	}
+
+	successLogger(function, args, startTime).Info()
+}
+
 func main() {
 	endpoint := os.Getenv("SERVER_ENDPOINT")
 	accessKey := os.Getenv("ACCESS_KEY")
@@ -1124,4 +1328,8 @@ func main() {
 		testObjectTagging(s3Client)
 		testObjectTaggingErrors(s3Client)
 	}
+	testGetBucketAcl(s3Client)
+	testPutBucketAcl(s3Client)
+	testGetObjectAcl(s3Client)
+	testPutObjectAcl(s3Client)
 }
