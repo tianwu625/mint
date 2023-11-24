@@ -15,4 +15,6 @@
 #  limitations under the License.
 #
 
+gem source --remove https://rubygems.org/
+gem source --add https://gems.ruby-china.com/
 gem install --no-document aws-sdk-resources aws-sdk multipart_body

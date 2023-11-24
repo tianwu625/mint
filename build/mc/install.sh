@@ -25,7 +25,10 @@ test_run_dir="$MINT_RUN_CORE_DIR/mc"
 $WGET --output-document="${test_run_dir}/mc" "https://dl.minio.io/client/mc/release/linux-amd64/mc.${MC_VERSION}"
 chmod a+x "${test_run_dir}/mc"
 
-git clone --quiet https://github.com/minio/mc.git "$test_run_dir/mc.git"
+for i in $(seq 1 3)
+do
+	git clone --quiet https://github.com/minio/mc.git "$test_run_dir/mc.git" && break || (ping 192.168.16.7 -c 2 && echo "retry...")
+done
 (
 	cd "$test_run_dir/mc.git"
 	git checkout --quiet "tags/${MC_VERSION}"

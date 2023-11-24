@@ -16,4 +16,5 @@
 #
 
 test_run_dir="$MINT_RUN_CORE_DIR/aws-sdk-go"
+go env -w GOPROXY="https://goproxy.cn,direct"
 (cd "$test_run_dir" && CGO_ENABLED=0 go build --ldflags "-s -w")

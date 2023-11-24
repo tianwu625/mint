@@ -24,7 +24,11 @@ if [ -z "$MINIO_JAVA_VERSION" ]; then
 fi
 
 test_run_dir="$MINT_RUN_CORE_DIR/minio-java"
-git clone --quiet https://github.com/minio/minio-java.git "$test_run_dir/minio-java.git"
+rm -rf $test_run_dir/minio-java.git
+for i in $(seq 1 3)
+do
+	git clone --quiet https://github.com/minio/minio-java.git "$test_run_dir/minio-java.git" && break || (ping 192.168.16.7 -c 2 && echo "retry....")
+done
 (
 	cd "$test_run_dir/minio-java.git"
 	git checkout --quiet "tags/${MINIO_JAVA_VERSION}"
